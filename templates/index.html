@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>SMind Evo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='remixicon.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css" rel="stylesheet">
+
+    <script defer>
+    (function() {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        if (savedTheme === 'dark') document.documentElement.classList.add('dark-mode');
+    })();
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const themeToggle = document.getElementById('theme-toggle');
+        const docElement = document.documentElement;
+        const backdrop = document.getElementById('backdrop');
+        const actionButtons = document.querySelectorAll('.action-btn');
+
+        const paramForm = document.getElementById('param-form');
+        const mainForm = document.getElementById('main-form');
+        const mainInput = document.getElementById('main-input');
+        const confirmParamsBtn = document.getElementById('confirm-params-btn');
+        const dialog = document.getElementById('saved-dialog');
+        
+        // --- 新增: 获取 toast 元素 ---
+        const devToast = document.getElementById('dev-toast');
+        let toastTimeout;
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('sidebar-hidden');
+            backdrop.classList.toggle('visible');
+        }
+        sidebarToggle.addEventListener('click', toggleSidebar);
+        backdrop.addEventListener('click', toggleSidebar);
+
+        themeToggle.addEventListener('click', function() {
+            docElement.classList.toggle('dark-mode');
+            const current = docElement.classList.contains('dark-mode') ? 'dark' : 'light';
+            localStorage.setItem('theme', current);
+        });
+
+        // --- 修改: 区分处理按钮点击事件 ---
+        const checkmarkIcon = document.createElement('i');
+        checkmarkIcon.className = 'ri-check-line check-icon';
+        if (actionButtons.length > 0) actionButtons[0].appendChild(checkmarkIcon);
+
+        actionButtons.forEach((btn, index) => {
+            btn.addEventListener('click', function(event) {
+                // 第一个按钮 (index 0) 正常移动绿色标记
+                if (index === 0) {
+                    const existing = document.querySelector('.check-icon');
+                    if (existing) existing.remove();
+                    btn.appendChild(checkmarkIcon);
+                } 
+                // 其他按钮触发 toast
+                else {
+                    // 1. 计算位置
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    devToast.style.top = `${rect.bottom + 15}px`; // 按钮下方 15px
+                    devToast.style.left = `${rect.left + rect.width / 2}px`; // 水平居中
+                    
+                    // 2. 显示 toast
+                    devToast.classList.add('visible');
+                    
+                    // 3. 清除上一个定时器（防止连续点击）
+                    clearTimeout(toastTimeout);
+                    
+                    // 4. 1.5秒后自动隐藏
+                    toastTimeout = setTimeout(() => {
+                        devToast.classList.remove('visible');
+                    }, 1500);
+                }
+            });
+        });
+
+        mainInput.addEventListener('focus', () => paramForm.classList.remove('hidden'));
+
+        confirmParamsBtn.addEventListener('click', () => {
+            dialog.classList.add('visible');
+            setTimeout(() => {
+                dialog.classList.remove('visible');
+            }, 2000);
+        });
+
+        mainForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const promptText = mainInput.value;
+            // paramsFormData 会自动包含所有 paramForm 内的 input
+            const paramsFormData = new FormData(paramForm);
+            const mainFormData = new FormData(mainForm);
+            for (let [k, v] of mainFormData.entries()) paramsFormData.append(k, v);
+
+            fetch('/solve', { method: 'POST', body: paramsFormData })
+                .then(r => r.json())
+                .then(data => {
+                    if (data && (data.status === 'accepted' || data.run_id)) {
+                        const runId = data.run_id;
+                        const url = `/session/${runId}?prompt=${encodeURIComponent(promptText || '')}`;
+                        window.location.href = url;
+                    } else {
+                        console.error('Solve failed:', data);
+                    }
+                })
+                .catch(err => console.error('Error /solve:', err));
+            mainInput.value = '';
+        });
+    });
+    </script>
+</head>
+
+<body>
+    <button id="sidebar-toggle" class="sidebar-toggle-btn">
+        <i class="ri-menu-2-line"></i>
+    </button>
+
+    <button id="theme-toggle" class="theme-toggle-btn">
+        <i class="ri-sun-line"></i>
+        <i class="ri-moon-clear-line"></i>
+    </button>
+
+    <aside id="sidebar" class="sidebar sidebar-hidden">
+        <h3 class="historyTitle">对话历史</h3>
+        <ul>
+            {% for item in history %}
+            <li class="{{ 'active' if loop.first else '' }}">
+                <a href="/session/{{ item.run_id }}?prompt={{ item.prompt | urlencode }}">
+                    {# 为了美观，对长的 prompt 进行截断处理 #}
+                    {{ item.prompt[:20] }}{% if item.prompt|length > 20 %}...{% endif %}
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <h1>SMind Evo</h1>
+
+        <form id="param-form" class="parameter-form hidden">
+            <div class="param-item">
+                <label for="population_size" class="param-label">初始种群规模</label>
+                <input type="number" id="population_size" name="population_size" class="param-value" value="8">
+            </div>
+            <div class="param-item">
+                <label for="generations" class="param-label">迭代代数</label>
+                <input type="number" id="generations" name="generations" class="param-value" value="6">
+            </div>
+            <div class="param-item">
+                <label for="parents" class="param-label">重组父母数</label>
+                <input type="number" id="parents" name="parents" class="param-value" value="5">
+            </div>
+            <div class="param-item">
+                <label for="tournament_size" class="param-label">锦标赛规模</label>
+                <input type="number" id="tournament_size" name="tournament_size" class="param-value" value="5">
+            </div>
+            <div class="param-item">
+                <label for="retries" class="param-label">最大初始化重试次数</label>
+                <input type="number" id="retries" name="retries" class="param-value" value="3">
+            </div>
+            <div class="row-break"></div>
+            <div class="param-item">
+                <label for="vehicle_capacity" class="param-label">车辆载重</label>
+                <input type="number" id="vehicle_capacity" name="vehicle_capacity" class="param-value" value="20" step="0.1">
+            </div>
+            <div class="param-item">
+                <label for="vehicle_fixed_cost" class="param-label">车辆固定成本</label>
+                <input type="number" id="vehicle_fixed_cost" name="vehicle_fixed_cost" class="param-value" value="50" step="0.1">
+            </div>
+            <div class="param-item">
+                <label for="transport_cost_per_km" class="param-label">运输成本/km</label>
+                <input type="number" id="transport_cost_per_km" name="transport_cost_per_km" class="param-value" value="2.2" step="0.1">
+            </div>
+            <div class="param-item">
+                <label for="avg_speed" class="param-label">平均速度(km/min)</label>
+                <input type="number" id="avg_speed" name="avg_speed" class="param-value" value="0.5" step="0.1">
+            </div>
+            
+            <button id="confirm-params-btn" type="button" class="submit-params-btn">
+                <i class="ri-check-line"></i>
+            </button>
+        </form>
+
+        <form id="main-form" class="input-container">
+            <div class="help-container">
+                <button id="help-btn" type="button" class="help-btn">
+                    <i class="ri-question-line"></i>
+                </button>
+                <div id="help-tooltip" class="help-tooltip">
+                    <h4>什么是VRP问题？</h4>
+                    <p>
+                        车辆路径问题 (VRP) 是一个经典的组合优化问题，为一组车辆规划最佳路线，以便在满足特定约束（载重、里程等）的前提下，以<b>最低成本</b>服务所有客户。
+                    </p>
+                    <p class="usage-tip">
+                        <b>使用方法：</b>您无需复杂建模，只需在上面定义好参数配置，然后在此输入框中输入每个客户点的经纬度坐标即可。例如: (10, 20), (30, 40)...
+                    </p>
+                    <p class="usage-tip">
+                        <b>优势：</b>您有任何特殊要求，如时间窗、优先级等，都可以用自然语言直接在输入中说明，SMind Evo会帮您处理复杂的建模和求解过程。
+                    </p>
+                </div>
+            </div>
+
+            <input type="text" id="main-input" name="vrp_problem" placeholder="请输入您的VRP问题坐标点，例如: (10, 20), (30, 40)..." autocomplete="off" required>
+            <button type="submit" class="send-btn">
+                <i class="ri-navigation-line send-icon"></i>
+            </button>
+        </form>
+
+        <p class="description">
+            SMind Evo方法可以使用大语言模型求解需要复杂形式化定义的问题, 精简问题的建模时间与流程
+        </p>
+
+        <div class="action-buttons">
+            <button class="btn btn-vrp action-btn"><i class="ri-truck-line"></i>求解VRP问题</button>
+            <button class="btn btn-tcm action-btn"><i class="ri-flask-line"></i>中医药处方问题</button>
+            <button class="btn btn-coming-soon action-btn"><i class="ri-function-line"></i>敬请期待...</button>
+        </div>
+    </main>
+    
+    <div id="dev-toast">功能开发中，敬请期待</div>
+
+    <div id="saved-dialog">已保存参数配置</div>
+    <div id="backdrop"></div>
+</body>
+</html>

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMind Evo · Session</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='chat.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='remixicon.css') }}">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css" rel="stylesheet">
+
+  <script defer>
+    (function () {
+      const t = localStorage.getItem('theme') || 'light';
+      if (t === 'dark') { document.documentElement.classList.add('dark-mode'); }
+    })();
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const runId = "{{ run_id }}";
+      const invalid = "{{ invalid|tojson }}";
+      const promptFromQuery = decodeURIComponent(new URLSearchParams(location.search).get('prompt') || "{{ prompt|e }}");
+
+      const sidebar = document.getElementById('sidebar');
+      const sidebarToggle = document.getElementById('sidebar-toggle');
+      const themeToggle = document.getElementById('theme-toggle');
+      const docElement = document.documentElement;
+      const backdrop = document.getElementById('backdrop');
+
+      const promptBox = document.getElementById('prompt-box');
+      const promptToggle = document.getElementById('prompt-toggle');
+      const chatStream = document.getElementById('chat-stream');
+
+      const paramForm = document.getElementById('param-form');
+      const mainForm = document.getElementById('main-form');
+      const mainInput = document.getElementById('main-input');
+      const confirmParamsBtn = document.getElementById('confirm-params-btn');
+
+      function toggleSidebar() { sidebar.classList.toggle('sidebar-hidden'); backdrop.classList.toggle('visible'); }
+      sidebarToggle.addEventListener('click', toggleSidebar);
+      backdrop.addEventListener('click', toggleSidebar);
+      themeToggle.addEventListener('click', function () {
+        docElement.classList.toggle('dark-mode');
+        localStorage.setItem('theme', docElement.classList.contains('dark-mode') ? 'dark' : 'light');
+      });
+
+      // 设置右上 Prompt 卡片
+      promptBox.textContent = promptFromQuery || '（无）';
+
+      // 折叠逻辑
+      const COLLAPSE_HEIGHT = 160;
+      function checkPromptCollapse() {
+        if (promptBox.scrollHeight > COLLAPSE_HEIGHT + 8) {
+          promptBox.classList.add('is-collapsible', 'collapsed');
+          promptToggle.style.display = 'inline-flex';
+        } else {
+          promptBox.classList.remove('is-collapsible', 'collapsed');
+          promptToggle.style.display = 'none';
+        }
+      }
+      promptToggle.addEventListener('click', () => {
+        promptBox.classList.toggle('collapsed');
+        promptToggle.textContent = promptBox.classList.contains('collapsed') ? '展开' : '收起';
+      });
+      window.addEventListener('resize', checkPromptCollapse);
+      checkPromptCollapse();
+
+      // 页面整体滚动到底部
+      function scrollToBottom() {
+        requestAnimationFrame(() => { window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }); });
+      }
+
+      // 逐条追加模型输出
+      function appendModelLine(text) {
+        const li = document.createElement('div');
+        li.className = 'msg model';
+        li.innerText = text;
+        chatStream.appendChild(li);
+        scrollToBottom();
+      }
+
+      if (invalid === "true") {
+        appendModelLine('无效的 run_id，无法获取会话。');
+        return;
+      } else {
+        appendModelLine('会话已创建，开始接收模型输出...');
+      }
+
+      // 轮询日志
+      let pollTimer = null;
+      let cursor = 0;
+      function pollLogs() {
+        pollTimer = setInterval(() => {
+          fetch(`/logs/${ runId }?cursor=${ cursor }`)
+            .then(r => r.json())
+            .then(res => {
+              if (!(res && res.status === 'ok')) {
+                clearInterval(pollTimer); pollTimer = null;
+                appendModelLine('[错误] 拉取日志失败。'); return;
+              }
+              (res.logs || []).forEach(item => appendModelLine(item.pretty || ''));
+              cursor = res.next_cursor ?? cursor;
+              if (res.done) { clearInterval(pollTimer); pollTimer = null; appendModelLine('（模型输出完成。）'); }
+            })
+            .catch(err => { clearInterval(pollTimer); pollTimer = null; appendModelLine('[错误] 网络异常，停止拉取。'); console.error(err); });
+        }, 2000);
+      }
+      pollLogs();
+
+      mainInput.addEventListener('focus', () => { paramForm.classList.add('open'); });
+      confirmParamsBtn.addEventListener('click', () => {
+        paramForm.classList.remove('open');
+        const toast = document.getElementById('param-toast');
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 1500);
+      });
+
+      mainForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const promptText = mainInput.value;
+        if (!promptText) return;
+
+        (function appendUserMsg() {
+          const li = document.createElement('div');
+          li.className = 'msg user';
+          li.innerText = promptText;
+          chatStream.appendChild(li);
+          scrollToBottom();
+        })();
+        // ===== 计算输入框高度，设置安全底边距，避免挡住输入框 =====
+        function setGaSafeBottom() {
+          const composer = document.querySelector('.chat-composer');
+          const h = composer ? composer.getBoundingClientRect().height : 80;
+          // 额外再留 16px 间距
+          const safe = Math.max(64, Math.round(h + 16));
+          document.documentElement.style.setProperty('--ga-safe-bottom', safe + 'px');
+        }
+        setGaSafeBottom();
+        window.addEventListener('resize', setGaSafeBottom);
+
+        const paramsFormData = new FormData(paramForm);
+        const mainFormData = new FormData(mainForm);
+        for (let [k, v] of mainFormData.entries()) paramsFormData.append(k, v);
+
+        fetch('/solve', { method: 'POST', body: paramsFormData })
+          .then(r => r.json())
+          .then(data => {
+            if (data && data.run_id) {
+              const newUrl = `/session/${ data.run_id }?prompt=${ encodeURIComponent(promptText || '') }`;
+              window.location.href = newUrl;
+            }
+          })
+          .catch(err => console.error(err));
+
+        mainInput.value = '';
+        paramForm.classList.add('hidden');
+      });
+
+      /* ===== 左下角浮动 GA 结果：只更新 .ga-content，避免覆盖结构 ===== */
+      const gaFloat = document.getElementById('ga-result');
+      const gaContent = gaFloat.querySelector('.ga-content');
+
+      const renderLoading = () => {
+        gaContent.innerHTML = `
+        <div class="ga-title">传统遗传算法求解结果</div>
+        <div class="ga-body">
+          <div class="ga-loading">
+            <i class="ri-loader-4-line ga-spin" aria-hidden="true"></i>
+            <span>传统遗传算法计算中…</span>
+          </div>
+        </div>`;
+      };
+
+      const renderFinal = () => {
+        gaContent.innerHTML = `
+        <div class="ga-title">传统遗传算法求解结果</div>
+        <div class="ga-body">
+          <div class="ga-subtitle">最优配送方案</div>
+          <ul class="ga-routes">
+            <li>车辆1：<code>[0, 24, 3, 4, 2, 15, 14, 21, 7, 13, 11, 17, 0]</code></li>
+            <li>车辆2：<code>[0, 18, 12, 10, 6, 19, 9, 22, 20, 23, 16, 8, 0]</code></li>
+            <li>车辆3：<code>[0, 5, 1, 0]</code></li>
+          </ul>
+          <div class="ga-summary">
+            汇总：迭代最低成本 319.67 元。
+          </div>
+        </div>`;
+      };
+
+      renderLoading();
+      setTimeout(renderFinal, 10000); // 10 秒后切换为结果
+      
+      /* ====== 固定定位的悬浮窗：可拖动 + 可多次拖动 + 宽度可调（事件委托版） ====== */
+      (function enableFixedDragAndResize() {
+        const floatEl = document.getElementById('ga-result');
+        if (!floatEl) return;
+
+        const resizer = floatEl.querySelector('.ga-resizer');
+
+        // 状态
+        let dragging = false;
+        let resizing = false;
+        let startX = 0, startY = 0;
+        let startLeft = 0, startTop = 0, startWidth = 0;
+
+        const addNoSelect = () => document.body.classList.add('ga-dragging');
+        const rmNoSelect = () => document.body.classList.remove('ga-dragging');
+
+        // 读取“安全底边距”像素
+        const getSafeBottom = () => {
+          const v = getComputedStyle(document.documentElement).getPropertyValue('--ga-safe-bottom').trim();
+          return parseInt(v || '96', 10) || 96;
+        };
+
+        // 每次需要拖拽/缩放前，确保用 top/left 基于视口定位（固定不随滚动）
+        function armForFixedTopLeft() {
+          const rect = floatEl.getBoundingClientRect();
+          floatEl.style.top = rect.top + 'px';
+          floatEl.style.left = rect.left + 'px';
+          floatEl.style.right = 'auto';
+          floatEl.style.bottom = 'auto';
+          floatEl.style.position = 'fixed';
+        }
+
+        // ===== 拖拽（事件委托：在浮窗上监听，命中 .ga-title 或无标题时整卡片） =====
+        function shouldStartDrag(target) {
+          // 优先允许从 .ga-title 拖；如果页面里没标题，则允许整个卡片
+          const hasTitle = !!floatEl.querySelector('.ga-title');
+          if (target.closest && target.closest('.ga-resizer')) return false; // 避免和缩放冲突
+          if (target.closest && target.closest('button,a,input,textarea,select,code')) return false;
+          return hasTitle ? !!target.closest('.ga-title') : !!target.closest('#ga-result');
+        }
+
+        function onDragStart(clientX, clientY) {
+          armForFixedTopLeft();
+          dragging = true;
+          addNoSelect();
+
+          const rect = floatEl.getBoundingClientRect();
+          startX = clientX;
+          startY = clientY;
+          startLeft = rect.left;
+          startTop = rect.top;
+
+          window.addEventListener('mousemove', onDragMove);
+          window.addEventListener('mouseup', onDragEnd);
+          window.addEventListener('touchmove', onDragMove, { passive: false });
+          window.addEventListener('touchend', onDragEnd);
+        }
+        function onDragMove(e) {
+          if (!dragging) return;
+          const p = e.touches ? e.touches[0] : e;
+          if (e.cancelable) e.preventDefault();
+
+          const dx = p.clientX - startX;
+          const dy = p.clientY - startY;
+
+          const safeBottom = getSafeBottom();
+          const maxLeft = window.innerWidth - floatEl.offsetWidth - 8;
+          const maxTop = window.innerHeight - floatEl.offsetHeight - safeBottom;
+
+          const newLeft = Math.max(8, Math.min(startLeft + dx, Math.max(8, maxLeft)));
+          const newTop = Math.max(8, Math.min(startTop + dy, Math.max(8, maxTop)));
+
+          floatEl.style.left = newLeft + 'px';
+          floatEl.style.top = newTop + 'px';
+        }
+        function onDragEnd() {
+          dragging = false;
+          rmNoSelect();
+          window.removeEventListener('mousemove', onDragMove);
+          window.removeEventListener('mouseup', onDragEnd);
+          window.removeEventListener('touchmove', onDragMove);
+          window.removeEventListener('touchend', onDragEnd);
+        }
+
+        // 在容器上做事件委托（不怕 .ga-content 被 innerHTML 替换）
+        floatEl.addEventListener('mousedown', (e) => {
+          if (!shouldStartDrag(e.target)) return;
+          onDragStart(e.clientX, e.clientY);
+        });
+        floatEl.addEventListener('touchstart', (e) => {
+          const t = e.touches && e.touches[0];
+          if (!t) return;
+          if (!shouldStartDrag(e.target)) return;
+          onDragStart(t.clientX, t.clientY);
+        }, { passive: true });
+
+        // ===== 宽度缩放：右侧细边；保持在视口内且不压住输入框 =====
+        function onResizeStart(clientX) {
+          armForFixedTopLeft();
+          resizing = true;
+          addNoSelect();
+          startX = clientX;
+          startWidth = floatEl.offsetWidth;
+
+          window.addEventListener('mousemove', onResizeMove);
+          window.addEventListener('mouseup', onResizeEnd);
+          window.addEventListener('touchmove', onResizeMove, { passive: false });
+          window.addEventListener('touchend', onResizeEnd);
+        }
+        function onResizeMove(e) {
+          if (!resizing) return;
+          const p = e.touches ? e.touches[0] : e;
+          if (e.cancelable) e.preventDefault();
+
+          const dx = p.clientX - startX;
+          const minW = 260;
+          const maxW = Math.min(720, window.innerWidth - 24);
+          const newW = Math.max(minW, Math.min(startWidth + dx, maxW));
+          floatEl.style.width = newW + 'px';
+
+          // 若扩大导致右侧溢出，向左回弹；底部保持安全边距
+          const rect = floatEl.getBoundingClientRect();
+          const overflowX = rect.right - window.innerWidth + 8;
+          if (overflowX > 0) floatEl.style.left = (rect.left - overflowX) + 'px';
+
+          const safeBottom = getSafeBottom();
+          const bottomSpace = window.innerHeight - (rect.top + floatEl.offsetHeight);
+          if (bottomSpace < safeBottom) {
+            floatEl.style.top = Math.max(8, window.innerHeight - safeBottom - floatEl.offsetHeight) + 'px';
+          }
+        }
+        function onResizeEnd() {
+          resizing = false;
+          rmNoSelect();
+          window.removeEventListener('mousemove', onResizeMove);
+          window.removeEventListener('mouseup', onResizeEnd);
+          window.removeEventListener('touchmove', onResizeMove);
+          window.removeEventListener('touchend', onResizeEnd);
+        }
+
+        if (resizer) {
+          // resizer 不会被 innerHTML 覆盖（它在 .ga-content 外），直接绑定即可
+          resizer.addEventListener('mousedown', (e) => onResizeStart(e.clientX));
+          resizer.addEventListener('touchstart', (e) => onResizeStart(e.touches[0].clientX), { passive: true });
+        }
+
+        // 视口变化时，保持在可视范围内 & 底部安全距离
+        window.addEventListener('resize', () => {
+          const rect = floatEl.getBoundingClientRect();
+          const safeBottom = getSafeBottom();
+          const newLeft = Math.max(8, Math.min(rect.left, window.innerWidth - floatEl.offsetWidth - 8));
+          const newTop = Math.max(8, Math.min(rect.top, window.innerHeight - floatEl.offsetHeight - safeBottom));
+          floatEl.style.left = newLeft + 'px';
+          floatEl.style.top = newTop + 'px';
+          floatEl.style.right = 'auto';
+          floatEl.style.bottom = 'auto';
+          floatEl.style.position = 'fixed';
+        });
+      })();
+
+    });
+  </script>
+</head>
+
+<body>
+  <button id="sidebar-toggle" class="sidebar-toggle-btn"><i class="ri-menu-2-line"></i></button>
+  <a href="/" id="home-btn" class="sidebar-toggle-btn"><i class="ri-home-4-line"></i></a>
+  <button id="theme-toggle" class="theme-toggle-btn"><i class="ri-sun-line"></i><i
+      class="ri-moon-clear-line"></i></button>
+
+  <aside id="sidebar" class="sidebar sidebar-hidden">
+    <h3 class="historyTitle">对话历史</h3>
+    <ul>
+      {% for item in history %}
+      <li class="{{ 'active' if item.run_id == run_id else '' }}">
+        <a href="/session/{{ item.run_id }}?prompt={{ item.prompt | urlencode }}">
+          {{ item.prompt[:20] }}{% if item.prompt|length > 20 %}...{% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <main class="chat-main">
+    <div class="content-wrapper">
+      <!-- 顶部：始终先渲染用户输入卡 -->
+      <div class="prompt-card">
+        <div class="prompt-title">用户输入</div>
+        <div id="prompt-box" class="prompt-content"></div>
+        <div class="prompt-actions">
+          <button id="prompt-toggle" type="button" class="prompt-toggle">展开</button>
+        </div>
+      </div>
+
+      <!-- 下面：模型输出标题 + stream -->
+      <h1 class="chat-title">SMind Evo （成本越低，效果越好）</h1>
+      <section id="chat-stream" class="chat-stream"></section>
+    </div>
+  </main>
+
+  <div class="chat-composer">
+    <form id="main-form" class="input-container docked">
+      <input type="text" id="main-input" name="vrp_problem" placeholder="请输入您的VRP问题" autocomplete="off" required>
+      <button type="submit" class="send-btn">
+        <i class="ri-navigation-line send-icon"></i>
+      </button>
+    </form>
+
+    <form id="param-form" class="parameter-form slide-up">
+      <div class="param-item">
+        <label class="param-label">初始种群规模</label>
+        <input type="number" name="population_size" class="param-value" value="10">
+      </div>
+      <div class="param-item">
+        <label class="param-label">迭代代数</label>
+        <input type="number" name="generations" class="param-value" value="6">
+      </div>
+      <div class="param-item">
+        <label class="param-label">重组父母数</label>
+        <input type="number" name="parents" class="param-value" value="5">
+      </div>
+      <div class="param-item">
+        <label class="param-label">锦标赛规模</label>
+        <input type="number" name="tournament_size" class="param-value" value="5">
+      </div>
+      <div class="param-item">
+        <label class="param-label">最大初始化重试次数</label>
+        <input type="number" name="retries" class="param-value" value="3">
+      </div>
+
+      <!-- ===== 新增参数开始 ===== -->
+      <div class="param-item" style="grid-column-start: 1;">
+        <label class="param-label">车辆载重</label>
+        <input type="number" name="vehicle_capacity" class="param-value" value="20.0" step="0.1">
+      </div>
+      <div class="param-item">
+        <label class="param-label">车辆固定成本</label>
+        <input type="number" name="vehicle_fixed_cost" class="param-value" value="50.0" step="0.1">
+      </div>
+      <div class="param-item">
+        <label class="param-label">运输成本/km</label>
+        <input type="number" name="transport_cost_per_km" class="param-value" value="2.2" step="0.1">
+      </div>
+      <div class="param-item">
+        <label class="param-label">平均速度(km/min)</label>
+        <input type="number" name="avg_speed" class="param-value" value="0.5" step="0.1">
+      </div>
+      <!-- ===== 新增参数结束 ===== -->
+
+      <button id="confirm-params-btn" type="button" class="submit-params-btn">
+        <i class="ri-check-line"></i>
+      </button>
+    </form>
+  </div>
+
+  <!-- 左下角浮动 GA 结果容器（外壳 + 内容区 + 自定义拖拽条） -->
+  <div class="ga-float" id="ga-result" data-draggable="true" aria-live="polite">
+    <div class="ga-content"></div>
+    <div class="ga-resizer" aria-hidden="true"></div>
+  </div>
+
+  <div id="param-toast">已保存参数配置</div>
+  <div id="backdrop"></div>
+</body>
+
+</html>

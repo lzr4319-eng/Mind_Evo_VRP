@@ -1,0 +1,517 @@
+/* =========================
+   chat.css  — 仅改聊天相关
+   ========================= */
+
+/* 主题变量（保持原名，避免影响其它文件） */
+:root {
+  --bg: #f6f8fb;
+  --fg: #1f2937;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --brand: #2563eb;
+  --model: #eef2ff;
+  --user: #dcfce7;
+  --border: #e5e7eb;
+  --scrollbar-thumb: #d1d5db;
+
+  --input-shadow: rgba(0,0,0,0.08);
+  --text-secondary: #111827;
+  --text-placeholder: #6b7280;
+}
+.dark-mode {
+  --bg: #0f172a;
+  --fg: #e5e7eb;
+  --card: #0b1220;
+  --muted: #9ca3af;
+  --brand: #60a5fa;
+  --model: #111827;
+  --user: #064e3b;
+  --border: #1f2937;
+  --scrollbar-thumb: #4b5563;
+
+  --input-shadow: rgba(0,0,0,0.35);
+  --text-secondary: #e5e7eb;
+  --text-placeholder: #9ca3af;
+}
+
+/* 新增：主页按钮定位 */
+#home-btn {
+  /* 假设侧边栏按钮在 left: 20px，我们将主页按钮放在它旁边 */
+  left: 125px; 
+  
+  /* 确保 <a> 标签内的图标能像 <button> 中一样垂直居中 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 基础 */
+* { box-sizing: border-box; }
+html { min-height: 100%; }
+body { min-height: 100vh; overflow-y: auto; }
+
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+
+/* 通用滚动条（WebKit） */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); border-radius: 6px; }
+
+/* 仅聊天主体相关（不改侧边栏） */
+.chat-main {
+  margin-left: 280px;              /* 与原布局一致：给侧栏让路 */
+  padding: 48px 24px 180px;        /* 底部为输入区留空间 */
+  min-height: 100vh;
+}
+
+/* 单列文档流：上=prompt-card(靠右且较窄)，下=chat-title + chat-stream */
+.content-wrapper {
+  max-width: 980px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* —— 用户输入卡片（靠右，短一些） —— */
+.prompt-card {
+  background: var(--card);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.04);
+  margin-left: auto;                                 /* 靠右对齐 */
+  width: clamp(300px, 42%, 520px);                   /* 更短的宽度范围 */
+  margin-top: 50px;
+}
+.prompt-title {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+/* 折叠内容（与 JS 配合） */
+.prompt-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+  position: relative;
+}
+.prompt-content.is-collapsible { transition: max-height .25s ease; }
+.prompt-content.collapsed {
+  max-height: 160px;   /* 与 JS 的 COLLAPSE_HEIGHT 保持一致 */
+  overflow: hidden;
+}
+.prompt-content.collapsed::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0; height: 56px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), var(--card) 70%);
+  pointer-events: none;
+}
+.dark-mode .prompt-content.collapsed::after {
+  background: linear-gradient(to bottom, rgba(15,23,42,0), var(--card) 70%);
+}
+.prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.prompt-toggle {
+  display: none;               /* 仅在需要折叠时由 JS 显示 */
+  padding: 6px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+
+/* 标题与聊天流（自动跟在 prompt-card 下方） */
+.chat-title {
+  font-size: 22px;
+  margin: 0;
+}
+
+/* 关键：chat-stream 不固定高度、不自带滚动；整体页面滚动 */
+.chat-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 8px;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+/* 气泡 */
+.msg {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 14px;
+}
+.msg.model { background: var(--model); }
+.msg.user  { align-self: flex-end; background: var(--user); }
+
+/* 底部输入与参数表单（保持原样式名，不触碰侧边栏） */
+.chat-composer {
+  position: fixed;
+  left: 280px;
+  right: 24px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  margin-bottom: 50px;
+  z-index: 1100;
+}
+
+.input-container.docked {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--card);
+  border: none;
+  border-radius: 33px !important;
+  padding: 0;
+  box-shadow: 4px 3px 45px 5px var(--input-shadow) !important;
+}
+.input-container.docked input {
+  flex: 1;
+  border: none !important;
+  background: transparent;
+  padding: 18px 60px 18px 30px !important;
+  font-size: 16px;
+  color: var(--text-secondary);
+  border-radius: 33px !important;
+}
+.input-container.docked input:focus { outline: none; }
+.input-container.docked .send-btn {
+  position: absolute;
+  right: 30px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  background: none !important;
+  border: none !important;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.input-container.docked .send-btn .send-icon {
+  font-size: 24px;
+  color: var(--text-placeholder);
+  transition: color .3s ease;
+}
+.input-container.docked .send-btn:hover .send-icon { color: #3B82F6; }
+
+/* 参数表单 */
+.parameter-form.slide-up {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(10px);
+  transition: all .35s ease;
+}
+.parameter-form.slide-up.open {
+  max-height: 220px;
+  opacity: 1;
+  transform: translateY(0);
+}
+.parameter-form.collapsed {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(130px, 1fr)) 44px;
+  gap: 8px 12px;
+  align-items: end;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.param-item { display: flex; flex-direction: column; gap: 6px; }
+.param-label { font-size: 12px; color: var(--muted); }
+.param-value {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  width: 60px !important;
+}
+.submit-params-btn {
+  height: 38px; width: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--brand);
+  color: white;
+  display: grid;
+  place-items: center;
+}
+
+/* 轻量吐司 */
+#param-toast {
+  position: fixed;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--card);
+  color: var(--fg);
+  border-radius: 12px;
+  padding: 12px 28px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.18);
+  opacity: 0;
+  pointer-events: none;
+  transition: all .32s ease;
+  z-index: 1300;
+}
+#param-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* 响应式：仅调聊天主列与输入区，不改侧边栏 */
+@media (max-width: 980px) {
+  .chat-main { margin-left: 0; padding-left: 16px; padding-right: 16px; }
+  .chat-composer { left: 16px; right: 16px; }
+  .prompt-card { width: min(520px, 90%); }
+}
+/* === 左下角固定的 GA 结果卡片 === */
+.ga-float{
+  position: fixed;
+  left: 170px;
+  bottom: 190px;                 /* 让出输入框高度 */
+  z-index: 40;                   /* 盖在聊天气泡上方，不遮住顶部按钮 */
+  width: 400px;
+  max-width: min(46vw, 560px);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  /* box-shadow: 0 6px 24px rgba(0,0,0,.08); */
+  padding: 16px 18px;
+}
+
+.ga-title{
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 8px;
+}
+
+.ga-body{ font-size: 14px; }
+
+.ga-subtitle{
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.ga-routes{
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px 0;
+  display: grid;
+  gap: 6px;
+}
+
+.ga-routes li{
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.ga-routes code{
+  font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  font-size: 13px;
+}
+
+.ga-summary{
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-weight: 600;
+}
+
+/* 加载态 */
+.ga-loading{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+.ga-spin{
+  display: inline-block;
+  font-size: 18px;
+  animation: ga-rotate 1s linear infinite;
+}
+@keyframes ga-rotate{
+  from{ transform: rotate(0); }
+  to{ transform: rotate(360deg); }
+}
+
+/* 移动端适配 */
+@media (max-width: 980px){
+  .ga-float{
+    left: 12px;
+    right: 12px;
+    width: auto;
+    bottom: 92px; /* 输入栏在移动端更高一点 */
+  }
+}
+/* === GA 浮窗：可拖拽 + 可调宽度（无浏览器默认角标） === */
+.ga-float{
+  position: fixed;               /* 初始固定在左下；JS 会转成 absolute + left/top */
+  left: 16px;
+  bottom: 16px;
+  width: 320px;                  /* 起始宽度，可被 JS 改写 */
+  max-width: 640px;
+  box-sizing: border-box;
+  z-index: 2147483640;
+}
+
+.ga-float .ga-title{
+  cursor: move;
+  user-select: none;
+}
+
+/* 右侧自定义宽度拖拽条 */
+.ga-float .ga-resizer{
+  position: absolute;
+  top: 6px;
+  right: -4px;                   /* 稍微探出一点，便于抓取 */
+  width: 8px;
+  bottom: 6px;
+  cursor: ew-resize;
+  background: transparent;       /* 默认透明，无“角标” */
+  border-radius: 2px;
+}
+.ga-float:hover .ga-resizer{
+  background: rgba(0,0,0,.05);
+}
+.dark-mode .ga-float:hover .ga-resizer{
+  background: rgba(255,255,255,.06);
+}
+
+/* 拖拽/缩放进行中，禁用文本选择，避免“选中文字” */
+.ga-dragging, .ga-dragging *{
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -ms-user-select: none !important;
+}
+.ga-dragging ::selection { background: transparent; }
+
+/* 可选：浮窗的内容区排版（保持你原有样式即可，不强制） */
+.ga-float .ga-body{ line-height: 1.5; }
+.ga-float .ga-loading{ display: flex; align-items: center; gap: .5rem; }
+.ga-float .ga-subtitle{ margin: .5rem 0 .25rem; font-weight: 600; }
+.ga-float .ga-routes{ margin: .25rem 0 .5rem; padding-left: 1.2rem; }
+.ga-spin{ animation: ga-spin 1s linear infinite; }
+@keyframes ga-spin{ to{ transform: rotate(360deg); } }
+/* === GA 浮窗：固定定位 + 可拖拽 + 可多次拖拽 + 可调宽度（无默认角标） === */
+.ga-float{
+  position: fixed;             /* 悬浮于滚动页面之上，不随滚动 */
+  left: 16px;                  /* 默认左下角 */
+  bottom: 16px;
+  width: 320px;                /* 起始宽度，拖拽缩放会改写 */
+  max-width: 720px;
+  box-sizing: border-box;
+  z-index: 2147483640;
+}
+
+/* 拖动把手（标题优先） */
+.ga-float .ga-title{
+  cursor: move;
+  user-select: none;
+}
+
+/* 自定义右侧“宽度拖拽条”，没有浏览器默认角标 */
+.ga-float .ga-resizer{
+  position: absolute;
+  top: 6px;
+  right: -4px;                 /* 微探出，便于抓取 */
+  width: 8px;
+  bottom: 6px;
+  cursor: ew-resize;
+  background: transparent;     /* 默认透明 */
+  border-radius: 2px;
+}
+.ga-float:hover .ga-resizer{
+  background: rgba(0,0,0,.05);
+}
+.dark-mode .ga-float:hover .ga-resizer{
+  background: rgba(255,255,255,.06);
+}
+
+/* 拖拽/缩放进行中，禁用文本选择，避免误选中 */
+.ga-dragging, .ga-dragging *{
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -ms-user-select: none !important;
+}
+.ga-dragging ::selection { background: transparent; }
+
+/* 可选：内部排版微调（保留你原样式也行） */
+.ga-float .ga-body{ line-height: 1.5; }
+.ga-float .ga-loading{ display:flex; align-items:center; gap:.5rem; }
+.ga-float .ga-subtitle{ margin:.5rem 0 .25rem; font-weight:600; }
+.ga-float .ga-routes{ margin:.25rem 0 .5rem; padding-left:1.2rem; }
+.ga-spin{ animation: ga-spin 1s linear infinite; }
+@keyframes ga-spin{ to{ transform: rotate(360deg); } }
+:root {
+  /* 兜底：如果 JS 没测到输入框高度，就当 96px */
+  --ga-safe-bottom: 96px;
+}
+
+/* === GA 浮窗：固定定位 + 可拖拽 + 可多次拖拽 + 可调宽度（无默认角标） === */
+.ga-float {
+  position: fixed;
+  left: 56px;
+  bottom: 450px;
+  /* 关键：离底部留出输入区的距离 */
+  width: 320px;
+  max-width: 720px;
+  box-sizing: border-box;
+  z-index: 2147483640;
+}
+
+.ga-float .ga-title {
+  cursor: move;
+  user-select: none;
+}
+
+.ga-float .ga-resizer {
+  position: absolute;
+  top: 6px;
+  right: -4px;
+  width: 8px;
+  bottom: 6px;
+  cursor: ew-resize;
+  background: transparent;
+  border-radius: 2px;
+}
+
+.ga-float:hover .ga-resizer {
+  background: rgba(0, 0, 0, .05);
+}
+
+.dark-mode .ga-float:hover .ga-resizer {
+  background: rgba(255, 255, 255, .06);
+}
+
+.ga-dragging,
+.ga-dragging * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+.ga-dragging ::selection {
+  background: transparent;
+}

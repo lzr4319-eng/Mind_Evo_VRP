@@ -1,0 +1,622 @@
+/* 引入 MiSans 字体 */
+@import url('https://cdn.jsdelivr.net/npm/misans@4.0.0/lib/Normal/MiSans-Bold.min.css');
+@import url('https://cdn.jsdelivr.net/npm/misans@4.0.0/lib/Normal/MiSans-Light.min.css');
+
+:root {
+    --body-bg: #F7FBFF;
+    --card-bg: #FFFFFF;
+    --toggle-bg: #FFFFFF;
+    --text-primary: #1C529B;
+    --text-secondary: #333;
+    --text-tertiary: #555;
+    --text-placeholder: #AEB8C9;
+    --text-description: #b1b1b1;
+    --param-text: #878787;
+    --active-item-bg: #F1F1F1;
+    --shadow-color: rgba(0, 0, 0, 0.05);
+    --input-shadow: rgba(0, 0, 0, 0.07);
+    --toggle-shadow: rgba(0, 0, 0, 0.1);
+}
+
+:root.dark-mode {
+    --body-bg: #111827;
+    --card-bg: #1F2937;
+    --toggle-bg: #374151;
+    --text-primary: #A5C9FF;
+    --text-secondary: #F3F4F6;
+    --text-tertiary: #D1D5DB;
+    --text-placeholder: #9CA3AF;
+    --text-description: #9CA3AF;
+    --param-text: #9CA3AF;
+    --active-item-bg: #374151;
+    --shadow-color: rgba(0, 0, 0, 0.2);
+    --input-shadow: rgba(0, 0, 0, 0.2);
+    --toggle-shadow: rgba(0, 0, 0, 0.25);
+}
+
+#saved-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    font-size: 18px;
+    padding: 20px 40px;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
+    z-index: 2000;
+}
+#saved-dialog.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+}
+.dark-mode #saved-dialog {
+    background: var(--card-bg);
+    color: var(--text-secondary);
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    background-color: var(--body-bg);
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+    transition: background-color 0.3s ease;
+}
+
+.row-break {
+  flex-basis: 100%;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+#backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease-in-out;
+}
+#backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.sidebar-toggle-btn, .theme-toggle-btn {
+    position: fixed;
+    top: 40px;
+    z-index: 1001;
+    background: var(--toggle-bg);
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    box-shadow: 0 4px 12px var(--toggle-shadow);
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.3s ease, background-color 0.3s ease;
+}
+.sidebar-toggle-btn { left: 40px; }
+.theme-toggle-btn { right: 40px; }
+
+.sidebar-toggle-btn:hover, .theme-toggle-btn:hover {
+    transform: scale(1.1);
+}
+
+.sidebar-toggle-btn i, .theme-toggle-btn i {
+    font-size: 24px;
+    color: var(--text-secondary);
+    transition: color 0.3s ease;
+}
+.theme-toggle-btn .ri-moon-clear-line { display: none; }
+.dark-mode .theme-toggle-btn .ri-moon-clear-line { display: block; }
+.dark-mode .theme-toggle-btn .ri-sun-line { display: none; }
+
+.sidebar {
+    width: 328px;
+    height: 740px;
+    background-color: var(--card-bg);
+    padding: 40px 20px;
+    box-sizing: border-box;
+    border-radius: 24px;
+    box-shadow: 0 10px 40px var(--shadow-color);
+    position: fixed;
+    top: 50%;
+    left: 5%;
+    transform: translateY(-50%);
+    z-index: 1000;
+    transition: transform 0.4s ease-in-out, background-color 0.3s ease;
+}
+
+.sidebar.sidebar-hidden {
+    transform: translateY(-50%) translateX(-120%);
+}
+
+.sidebar h3 {
+    font-size: 18px;
+    color: var(--text-secondary);
+    margin-top: 0;
+    margin-bottom: 30px;
+    padding-left: 15px;
+    font-weight: 600;
+    transition: color 0.3s ease;
+}
+
+.sidebar ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar ul li a {
+    display: block;
+    text-decoration: none;
+    color: var(--text-tertiary);
+    padding: 12px 15px;
+    border-radius: 10px;
+    margin: 0 10px 10px;
+    font-size: 14px;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.sidebar ul li.active a {
+    background-color: var(--active-item-bg);
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.sidebar ul li a:hover {
+    background-color: var(--active-item-bg);
+}
+
+.main-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 1300px;
+    height: 100%;
+    box-sizing: border-box;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 0 60px;
+}
+
+.main-content h1 {
+    font-size: 72px;
+    color: var(--text-primary);
+    font-family: "Helvetica Bold", Helvetica, Arial, sans-serif;
+    font-weight: bold;
+    margin-top: 0;
+    margin-bottom: 60px;
+    transition: color 0.3s ease, font-size 0.3s ease;
+}
+
+.parameter-form {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap; 
+    gap: 20px;
+    width: 100%;
+    margin-bottom: 20px;
+    padding: 10px 0;
+    overflow: hidden;
+    transition: all 0.4s ease-in-out;
+    max-height: 100px;
+    opacity: 1;
+    transform: translateY(0);
+}
+.parameter-form.hidden {
+    max-height: 0;
+    opacity: 0;
+    transform: translateY(-20px);
+    margin-bottom: 0;
+    padding: 0;
+}
+.param-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.param-label {
+    font-family: 'MiSans Light', sans-serif;
+    color: var(--param-text);
+    font-size: 14px;
+    transition: color 0.3s ease;
+    white-space: nowrap;
+}
+
+.param-value {
+    background-color: var(--card-bg);
+    color: var(--text-secondary);
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    box-shadow: 0 2px 4px var(--shadow-color);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    border: none;
+    width: 40px;
+    text-align: center;
+    -moz-appearance: textfield;
+}
+.param-value::-webkit-outer-spin-button,
+.param-value::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.submit-params-btn {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 20px;
+    transition: transform 0.2s ease;
+}
+.submit-params-btn:hover {
+    transform: scale(1.1);
+}
+
+.input-container {
+    position: relative;
+    width: 100%;
+    display: flex; /* 改为flex布局以容纳帮助按钮 */
+    align-items: center;
+}
+
+.input-container input {
+    width: 100%;
+    /* 修改 padding-left 为帮助按钮留出空间 */
+    padding: 18px 60px 18px 70px; 
+    border: none;
+    border-radius: 33px;
+    font-size: 16px;
+    background-color: var(--card-bg);
+    color: var(--text-secondary);
+    box-shadow: 4px 3px 45px 5px var(--input-shadow);
+    box-sizing: border-box;
+    transition: background-color 0.3s ease, color 0.3s ease, padding-left 0.3s ease;
+}
+
+.input-container input:focus,
+.param-value:focus {
+    outline: none;
+}
+
+.input-container input::placeholder {
+    color: var(--text-placeholder);
+}
+
+/* #region --- 新增：帮助按钮和提示框样式 --- */
+.help-container {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+}
+
+.help-btn {
+    /* 样式参考 .theme-toggle-btn */
+    background: var(--toggle-bg);
+    border: none;
+    border-radius: 50%;
+    width: 44px; /* 尺寸微调 */
+    height: 44px;
+    box-shadow: 0 2px 8px var(--toggle-shadow);
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 0.3s ease, background-color 0.3s ease;
+    padding: 0;
+}
+
+.help-btn:hover {
+    transform: scale(1.1);
+}
+
+.help-btn i {
+    font-size: 22px;
+    color: var(--text-secondary);
+    transition: color 0.3s ease;
+}
+
+.help-tooltip {
+    position: absolute;
+    bottom: 120%; /* 定位在按钮上方 */
+    left: 50%;
+    transform: translateX(-50%) translateY(10px); /* 初始位置偏下，用于动效 */
+    width: 320px;
+    background-color: var(--card-bg);
+    color: var(--text-secondary);
+    padding: 15px 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none; /* 初始不可见不可交互 */
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* 提示框的小箭头 */
+.help-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 8px;
+    border-style: solid;
+    border-color: var(--card-bg) transparent transparent transparent;
+    transition: border-color 0.3s ease;
+}
+
+/* 鼠标悬停在按钮上时，显示提示框 */
+.help-btn:hover + .help-tooltip {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0); /* 移动到最终位置 */
+}
+
+.help-tooltip h4 {
+    margin: 0 0 10px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.help-tooltip p {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    line-height: 1.6;
+    font-family: 'MiSans Light', sans-serif;
+}
+
+.help-tooltip .usage-tip {
+    margin-top: 12px;
+    font-size: 13px;
+    opacity: 0.9;
+}
+/* #endregion */
+
+
+.send-icon {
+    font-size: 24px;
+    color: var(--text-placeholder);
+    transition: color 0.3s ease;
+}
+
+.description {
+    font-size: 17px;
+    color: var(--text-description);
+    margin-top: 20px;
+    margin-bottom: 80px;
+    font-family: 'MiSans Light', sans-serif;
+    transition: color 0.3s ease, font-size 0.3s ease;
+    text-align: center;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 50px;
+}
+
+.btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+    border-radius: 22px;
+    font-family: 'MiSans', sans-serif;
+    font-weight: 700;
+    font-size: 21px;
+    min-width: 270px;
+    min-height: 110px;
+    padding: 20px 35px;
+    position: relative;
+}
+
+.btn i {
+    font-size: 24px;
+    margin-right: 12px;
+}
+
+.check-icon {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background-color: #4CAF50;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    font-size: 18px;
+    color: white;
+    border: 3px solid var(--card-bg);
+    transition: border-color 0.3s ease;
+}
+
+.btn-vrp { background: linear-gradient(47deg, #f78a9e, #f56f87, #fe988b); }
+.btn-vrp:hover { transform: translateY(-3px); box-shadow: 0 12px 25px rgba(250, 112, 154, 0.3); }
+.btn-tcm { background: linear-gradient(47deg, rgba(232, 119, 174, 0.86), rgba(124, 115, 243, 0.86)); }
+.btn-tcm:hover { transform: translateY(-3px); box-shadow: 0 12px 25px rgba(122, 136, 255, 0.3); }
+.btn-coming-soon { background: linear-gradient(142deg, rgba(200, 227, 250, 0.61), rgba(230, 36, 144, 0.61)); }
+.btn-coming-soon:hover { transform: translateY(-3px); box-shadow: 0 12px 25px rgba(248, 123, 190, 0.3); }
+
+
+/* --- 新增：为发送按钮<button>添加样式，使其看起来像一个图标 --- */
+.send-btn {
+    position: absolute;
+    right: 30px;
+    top: 50%;
+    transform: translateY(-50%) rotate(45deg);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+.send-btn:hover .send-icon {
+    color: #3B82F6;
+}
+
+/* --- 新增: "开发中" Toast 的样式 --- */
+#dev-toast {
+    position: fixed;
+    /* top 和 left 由 JS 动态设置 */
+    transform: translateX(-50%) translateY(10px) scale(0.9); /* 初始位置在目标下方，且稍微缩小 */
+    background: var(--card-bg);
+    color: var(--text-secondary);
+    font-size: 14px;
+    padding: 10px 20px;
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    z-index: 2000;
+    white-space: nowrap;
+}
+#dev-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1); /* 移动到最终位置并恢复大小 */
+}
+
+
+/* ############################################### */
+/* --- 自适应设计 (移动端) --- */
+/* ############################################### */
+
+@media (max-width: 768px) {
+    body {
+        overflow-y: auto;
+    }
+
+    .sidebar-toggle-btn, .theme-toggle-btn {
+        top: 20px;
+    }
+    .sidebar-toggle-btn { left: 20px; }
+    .theme-toggle-btn { right: 20px; }
+
+    .sidebar {
+        width: 280px;
+        height: 100vh;
+        border-radius: 0;
+        left: 0;
+        top: 0;
+        transform: translateX(-100%);
+    }
+    .sidebar.sidebar-hidden {
+        transform: translateX(-100%);
+    }
+    .sidebar:not(.sidebar-hidden) {
+        transform: translateX(0);
+    }
+    
+    .main-content {
+        position: static;
+        width: 100%;
+        height: auto;
+        min-height: 100vh;
+        transform: none;
+        padding: 20px;
+        justify-content: flex-start;
+    }
+    
+    .main-content h1 {
+        order: 1;
+        font-size: 40px;
+        margin-top: 80px;
+        margin-bottom: 20px;
+    }
+    .main-content .description {
+        order: 2;
+        font-size: 14px;
+        margin-bottom: 40px;
+    }
+    .main-content .action-buttons {
+        order: 3;
+    }
+    .main-content .parameter-form {
+        order: 4;
+        margin-top: auto;
+    }
+    .main-content .input-container {
+        order: 5;
+    }
+    
+    .input-container input {
+        padding-left: 60px; /* 移动端也调整一下 */
+    }
+    
+    .help-container {
+        left: 5px; /* 移动端位置微调 */
+    }
+    
+    .help-btn {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .help-btn i {
+        font-size: 20px;
+    }
+
+    .parameter-form {
+        gap: 15px;
+        justify-content: flex-start;
+        margin-bottom: 15px;
+    }
+    .param-label { font-size: 12px; }
+    .param-value { font-size: 12px; }
+
+    .action-buttons {
+        flex-direction: column;
+        gap: 20px;
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .historyTitle{
+        padding-top: 50px;
+    }
+
+    .btn {
+        min-width: 100%;
+        min-height: 80px;
+        font-size: 18px;
+    }
+}
